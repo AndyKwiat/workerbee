@@ -25,13 +25,30 @@ to check their own work.
 
 ## How it's built
 
-The server is Bun + TypeScript, compiled into a single binary. The UI is React. Sessions run through the
-[Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview), and everything they do gets saved to
-SQLite, which is why you can close the tab and come back later.
+```
+browser ──HTTPS──▶ Caddy ──(Google login gate, allowlist)──▶ workerbee :PORT (127.0.0.1)
+                                                                 │
+                 ┌───────────────────────────────────────────────┤
+                 │  HTTP + WebSocket API (its own protocol)      │
+                 │  Harness interface ◀── ClaudeHarness (Agent SDK) ──spawns──▶ claude CLI
+                 │  SQLite: sessions + normalized event log      │
+                 │  usage poller ──▶ the account's usage endpoint│
+                 └───────────────────────────────────────────────┘
+```
 
-It sits behind the same Google login as the rest of my apps. The agents run on the same box, so I made sure they
-can't talk to workerbee's API directly and approve their own permission prompts. Agent output also gets rendered
-carefully, since anything a model reads off the web could try to sneak something in.
+- **Server:** Bun + TypeScript (`server/`). Compiled with `bun build --compile` into one self-contained Linux
+  binary, deployed as a radify app.
+- **UI:** React + Vite (`web/`). It only speaks workerbee's own event protocol (`web/src/api.ts`), never an SDK
+  format.
+- **Harness-agnostic.** `server/harness/types.ts` defines a small `Harness` interface and normalized events
+  (`text`, `thinking`, `tool_use`, `tool_result`, `permission_request`, `turn_end`, …). Claude, via the
+  [Claude Agent SDK](https://docs.claude.com/en/api/agent-sdk/overview), is the only implementation today;
+  another agent CLI could slot in beside it.
+- **Security.** Login is handled in front of the app by the platform's Google gate. The app trusts the forwarded
+  identity header only on connections whose socket is owned by the `caddy` user (`server/peer.ts`), so the agents
+  it runs can't call its API and approve their own permission prompts. Writes and the WebSocket must be
+  same-origin, the UI has a strict CSP, and transcript markdown is rendered with raw HTML escaped and remote
+  images blocked, since agent output can be prompt-injected.
 
 ## Running it
 
