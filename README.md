@@ -5,7 +5,7 @@ I start a session from my phone, close the tab, and it keeps working; when I com
 up. Sessions can build, test and deploy apps to my self-hosted platform (radify), and they have a headless browser
 to check their own work.
 
-![workerbee: a session transcript with the sidebar of projects and the usage bar](docs/screenshot.png)
+![workerbee: a session transcript with the sidebar of projects and the usage bar](docs/workerbee.png)
 
 ## What it does
 
