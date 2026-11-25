@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "workerbee-dev",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": ["-c", "rm -rf .data && mkdir -p .data/projects/demo && WB_DEV=1 DATA_DIR=.data PORT=8787 STATIC_DIR=dist/static WB_USAGE_POLL_MS=600000 bun server/main.ts"],
+      "port": 8787
+    }
+  ]
+}
