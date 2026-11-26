@@ -78,7 +78,8 @@ pollUsage();
 async function setupEnv() {
   if (config.ghToken) {
     const helper = `!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f`;
-    await Bun.spawn(["git", "config", "--global", "credential.https://github.com.helper", helper]).exited;
+    // --replace-all: `gh auth setup-git` (run in a session) adds its own values for this key; a plain set then fails
+    await Bun.spawn(["git", "config", "--global", "--replace-all", "credential.https://github.com.helper", helper]).exited;
   }
   if (!config.dev) {
     // commit identity is set once on the server (git config --global user.name/user.email); default only if unset
