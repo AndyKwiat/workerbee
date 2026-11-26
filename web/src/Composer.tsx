@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ModelOption, PermissionMode, Session } from "./api";
+import { uploadFile, type ModelOption, type PermissionMode, type Session, type Uploaded } from "./api";
 
 const MODES: { value: PermissionMode; label: string }[] = [
   { value: "default", label: "Ask permissions" },
@@ -40,6 +40,8 @@ export function Composer(p: {
     }
   });
   const [images, setImages] = useState<Img[]>([]);
+  const [uploads, setUploads] = useState<Uploaded[]>([]);
+  const [uploading, setUploading] = useState(0);
   const ta = useRef<HTMLTextAreaElement>(null);
   const busy = p.session.status !== "idle";
 
@@ -61,18 +63,39 @@ export function Composer(p: {
   }, []);
 
   const send = async () => {
-    if (!text.trim() && !images.length) return;
+    if ((!text.trim() && !images.length && !uploads.length) || uploading) return;
     const t = text;
+    const ups = uploads;
+    const note = ups.map((u) => `[Uploaded file: ${u.path}]`).join("\n");
     const imgs = images.map(({ mediaType, data }) => ({ mediaType, data }));
     setText("");
     setImages([]);
-    const ok = await p.onSend(t, imgs.length ? imgs : undefined);
-    if (ok === undefined) setText(t); // failed: put it back
+    setUploads([]);
+    const ok = await p.onSend([t, note].filter(Boolean).join("\n\n"), imgs.length ? imgs : undefined);
+    if (ok === undefined) {
+      setText(t); // failed: put it back
+      setUploads(ups);
+    }
   };
 
   const addFiles = async (files: FileList | File[]) => {
-    const imgs = await Promise.all([...files].filter((f) => f.type.startsWith("image/")).map(readImage));
+    // Images go to Claude inline (it can see them); other files go to the shared files folder and their path is
+    // added to the message.
+    const all = [...files];
+    const isImg = (f: File) => /^image\/(png|jpeg|gif|webp)$/.test(f.type);
+    const imgs = await Promise.all(all.filter(isImg).map(readImage));
     if (imgs.length) setImages((cur) => [...cur, ...imgs].slice(0, 8));
+    for (const f of all.filter((f) => !isImg(f))) {
+      setUploading((n) => n + 1);
+      try {
+        const u = await uploadFile(f);
+        setUploads((cur) => [...cur, u]);
+      } catch (e: any) {
+        alert(`Upload of ${f.name} failed: ${e?.message ?? e}`);
+      } finally {
+        setUploading((n) => n - 1);
+      }
+    }
   };
 
   const model = p.session.model ?? "";
@@ -87,6 +110,16 @@ export function Composer(p: {
               <img src={im.url} alt="" />
             </button>
           ))}
+        </div>
+      )}
+      {(uploads.length > 0 || uploading > 0) && (
+        <div className="thumbs">
+          {uploads.map((u, i) => (
+            <button key={u.path} className="file-chip" onClick={() => setUploads((c) => c.filter((_, j) => j !== i))} title="Remove from message">
+              📄 {u.name} ✕
+            </button>
+          ))}
+          {uploading > 0 && <span className="file-chip">Uploading…</span>}
         </div>
       )}
       <div className="composer-box">
@@ -111,9 +144,14 @@ export function Composer(p: {
           }}
         />
         <div className="composer-bar">
-          <label className="icon attach" title="Attach image">
+          <label className="icon attach" title="Attach images or files">
             📎
-            <input type="file" accept="image/*" multiple hidden onChange={(e) => e.target.files && addFiles(e.target.files)} />
+            <input type="file" multiple hidden onChange={(e) => {
+                const fs = [...(e.target.files ?? [])];
+                e.target.value = "";
+                addFiles(fs);
+              }}
+            />
           </label>
           <select value={model} onChange={(e) => p.onChange({ model: e.target.value || null })} title="Model">
             <option value="">Default model</option>
@@ -151,7 +189,7 @@ export function Composer(p: {
               ■ Stop
             </button>
           )}
-          <button className="primary send" onClick={send} disabled={!text.trim() && !images.length}>
+          <button className="primary send" onClick={send} disabled={(!text.trim() && !images.length && !uploads.length) || uploading > 0}>
             Send
           </button>
         </div>

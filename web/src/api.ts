@@ -124,6 +124,17 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   return j as T;
 }
 
+export type Uploaded = { name: string; path: string; url: string };
+
+/** Upload a file to the shared files folder (raw body). */
+export async function uploadFile(f: File): Promise<Uploaded> {
+  const r = await fetch(`/api/files?name=${encodeURIComponent(f.name)}`, { method: "POST", body: f });
+  if (r.status === 401 || r.status === 403 || r.redirected) throw new Error("Not signed in (reload the page)");
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error ?? `HTTP ${r.status}`);
+  return j as Uploaded;
+}
+
 export const api = {
   state: () => call<State>("GET", "/state"),
   cleanupSessions: () => call<{ deleted: string[] }>("POST", "/sessions/cleanup"),

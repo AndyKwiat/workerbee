@@ -11,6 +11,8 @@ export const config = {
   dataDir,
   dbPath: join(dataDir, "workerbee.db"),
   projectsDir: resolve(process.env.WB_PROJECTS_DIR ?? join(dataDir, "projects")),
+  /** Shared upload/download folder for all sessions (served at /files/). */
+  filesDir: resolve(process.env.WB_FILES_DIR ?? join(dataDir, "files")),
   staticDir: process.env.STATIC_DIR ?? resolve("dist/static"),
   home: process.env.HOME ?? homedir(),
   /** Comma-separated emails allowed in (defense in depth behind the radify gate). Empty = trust the gate. */

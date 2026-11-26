@@ -16,6 +16,19 @@ often on his phone, so keep them short.
   look for other credentials. New repos are private unless Andy says otherwise (`gh repo create AndyKwiat/<name>
   --private --source . --push`). Never force-push or delete branches you didn't create without asking.
 
+## Sharing files with Andy: `/srv/apps/workerbee/data/files/`
+
+One shared folder for every session. Files in it are deleted after 7 days, so it is for handing things over, not
+for keeping them.
+
+- **Andy → you**: files Andy attaches in the chat (other than images, which you see directly) are uploaded there,
+  and his message says `[Uploaded file: /srv/apps/workerbee/data/files/<name>]`. Read or copy them from that path.
+- **You → Andy**: to give Andy a file (a build, report, export, zip, …), copy it into the folder and give him the
+  link `https://workerbee.akwiat.com/files/<name>` (URL-encode the name; plain names like `report-2026-11-26.pdf`
+  are easiest). Use a name that doesn't overwrite someone else's file. Images, text, markdown, JSON and CSV open in
+  the browser; everything else downloads. HTML and SVG download too, so zip a site or deploy it instead.
+- Zip folders first (`zip -r /srv/apps/workerbee/data/files/out.zip dir/`). Don't put secrets there.
+
 ## Testing in a browser (headless Chromium)
 
 You have a real browser: the `mcp__playwright__browser_*` tools (navigate, click, type, snapshot, take_screenshot,

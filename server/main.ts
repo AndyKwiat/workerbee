@@ -7,12 +7,16 @@ import { config } from "./config";
 import { peerUid, uidOf } from "./peer";
 import { Store } from "./db";
 import { Projects } from "./projects";
+import { Files, fileResponse } from "./files";
 import { SessionManager, type Broadcast } from "./sessions";
 import { ClaudeHarness, claudeBin } from "./harness/claude";
 import type { Harness, PermissionDecision, Usage } from "./harness/types";
 
 const store = new Store(config.dbPath);
 const projects = new Projects(config.projectsDir);
+const files = new Files(config.filesDir);
+files.cleanup();
+setInterval(() => files.cleanup(), 6 * 3600_000);
 const claude = new ClaudeHarness(config.home);
 const harnesses: Record<string, Harness> = { [claude.id]: claude };
 const defaultHarness = claude.id;
@@ -211,6 +215,11 @@ async function api(req: Request, url: URL, me: string): Promise<Response> {
     }
   }
 
+  if (a === "files" && !b && m === "POST") {
+    const name = url.searchParams.get("name") ?? "file";
+    return json(await files.save(name, await req.arrayBuffer()), 201);
+  }
+
   if (a === "sessions") {
     if (!b && m === "POST") {
       const p = await body(req);
@@ -285,6 +294,7 @@ const server = Bun.serve({
   port: config.port,
   hostname: "127.0.0.1",
   idleTimeout: 120,
+  maxRequestBodySize: 200 * 1024 * 1024,
   async fetch(req, srv) {
     const url = new URL(req.url);
     if (url.pathname === "/healthz") return new Response("ok");
@@ -295,6 +305,10 @@ const server = Bun.serve({
     if (url.pathname === "/ws") {
       if (!sameOrigin(req)) return new Response("bad origin", { status: 403 });
       return srv.upgrade(req) ? undefined : new Response("upgrade failed", { status: 400 });
+    }
+    if (url.pathname.startsWith("/files/") && req.method === "GET") {
+      const p = files.resolve(url.pathname.slice("/files/".length));
+      return p ? fileResponse(p) : new Response("not found (files are deleted after 7 days)", { status: 404 });
     }
     if (url.pathname.startsWith("/api/")) {
       if (req.method !== "GET" && !sameOrigin(req)) return fail("bad origin", 403);

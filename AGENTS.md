@@ -48,6 +48,7 @@ moment is cut off (it shows "process exited"), and so are background subagents. 
 /srv/apps/workerbee/current/{bin/app,static/}     deployed release (radify)
 /srv/apps/workerbee/env                           WB_ALLOWED_EMAILS, GH_TOKEN, … (radify env-set)
 /srv/apps/workerbee/data/                         DATA_DIR, the only writable path, owned by user `workerbee`
+  files/                                          shared upload/download folder (all sessions; /files/<name>; 7-day cleanup)
   workerbee.db                                    sessions + normalized event log (what the UI shows)
   projects/<name>/                                project folders = session cwd
   home/                                           HOME for Claude:
@@ -100,6 +101,11 @@ Runtime env (set by radify's unit + the drop-in):
 - `server/main.ts`: `Bun.serve` HTTP API under `/api/*`, a WebSocket at `/ws` (server → client pushes: `event`,
   `delta`, `session`, `usage`, `auth`, `projects`), and static files with an SPA fallback. Identity comes from
   `X-Auth-Email`. Requests that are not GET, and socket opens, must be same-origin.
+- `server/files.ts`: the shared files folder. `POST /api/files?name=…` (raw body) saves an upload (the composer's
+  📎 sends non-image files there and puts `[Uploaded file: <path>]` in the message). `GET /files/<path>` downloads
+  (behind `identity()` like everything else), with `attachment` for anything but images/plain text and a `sandbox`
+  CSP, because sessions write these files and they must never run as script on this origin. Files older than 7 days
+  are deleted. Sessions learn about it from `ops/claude-home/CLAUDE.md`.
 - `server/projects.ts`: a project is just a directory under `projects/` (no table). It is created empty (`git init`)
   or by `git clone`.
 - `web/src/api.ts` mirrors the protocol types by hand. **Change the server types → update `api.ts` too.**

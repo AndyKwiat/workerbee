@@ -12,7 +12,7 @@ to check their own work.
 - **Projects and sessions.** A project is a folder on the server: empty, a `git clone`, or a new GitHub repo. Each
   project holds any number of Claude sessions, which you can rename, archive and resume.
 - **Live transcript.** Streaming text and thinking, tool calls with collapsible input and output, diffs for edits,
-  screenshots from the agent's browser, image paste in the composer, and a Stop button.
+  screenshots from the agent's browser, image paste and file uploads in the composer, download links for files the agent shares, and a Stop button.
 - **Permission prompts in the browser.** "Allow Bash: `bun test`?" shows up in the UI. Model, effort and
   permission mode can be picked per session.
 - **Sessions outlive the tab.** Reopen from any device and pick up where it left off. A `claude` process only runs
