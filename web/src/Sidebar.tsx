@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AuthStatus, Folder, Session, State } from "./api";
 
 function ago(iso: string) {
@@ -45,6 +45,59 @@ function FolderPlus() {
       <path d="M12 11v5M9.5 13.5h5" />
     </svg>
   );
+}
+
+function Plus() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" aria-hidden="true">
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+const MIN_W = 200;
+const MAX_W = 600;
+const DEFAULT_W = 280;
+
+/** Desktop sidebar width: a drag handle on its right edge, remembered per browser. Double-click resets. */
+function useSidebarWidth() {
+  const [w, setW] = useState(() => {
+    try {
+      const n = Number(localStorage.getItem("wb.sidebarWidth"));
+      return n >= MIN_W && n <= MAX_W ? n : DEFAULT_W;
+    } catch {
+      return DEFAULT_W;
+    }
+  });
+  useEffect(() => {
+    document.documentElement.style.setProperty("--sidebar-w", `${w}px`);
+  }, [w]);
+  const save = (n: number) => {
+    try {
+      localStorage.setItem("wb.sidebarWidth", String(n));
+    } catch {}
+  };
+  const onPointerDown = (e: React.PointerEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = w;
+    let last = w;
+    document.body.classList.add("resizing");
+    const move = (ev: PointerEvent) => {
+      last = Math.min(MAX_W, Math.max(MIN_W, startW + ev.clientX - startX));
+      setW(last);
+    };
+    const up = () => {
+      document.body.classList.remove("resizing");
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      save(last);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  const reset = () => (setW(DEFAULT_W), save(DEFAULT_W));
+  return { onPointerDown, reset };
 }
 
 /** A checkbox setting remembered in localStorage (per browser). */
@@ -99,6 +152,7 @@ export function Sidebar(p: {
   };
 
   const [grouped, setGroup] = useStoredFlag("wb.groupByProject");
+  const resize = useSidebarWidth();
   const [hideEmpty, setHideEmpty] = useStoredFlag("wb.hideEmptyProjects");
 
   const visible = p.state.sessions.filter((s) => !!s.archived === showArchived);
@@ -197,11 +251,15 @@ export function Sidebar(p: {
 
   return (
     <nav className="sidebar" onClick={() => setMenu(null)}>
+      <div className="sidebar-resizer hide-mobile" onPointerDown={resize.onPointerDown} onDoubleClick={resize.reset} title="Drag to resize (double-click to reset)" />
       <div className="sidebar-actions">
         {grouped ? (
-          <button className="primary" onClick={p.onNewProject}>
-            + New project
-          </button>
+          <div className="sidebar-head">
+            <span className="muted small">Projects</span>
+            <button className="small-btn" onClick={p.onNewProject}>
+              + Project
+            </button>
+          </div>
         ) : (
           <div className="sidebar-buttons">
             <button
@@ -213,7 +271,9 @@ export function Sidebar(p: {
             >
               + New session
             </button>
-            <button onClick={p.onNewProject}>+ Project</button>
+            <button className="small-btn" onClick={p.onNewProject}>
+              + Project
+            </button>
             {menu === "#new" && (
               <div className="menu new-menu" onClick={(e) => e.stopPropagation()}>
                 {[...names].sort().map((name) => (
@@ -242,11 +302,11 @@ export function Sidebar(p: {
                     <button className="project-name" onClick={() => toggle(name)}>
                       <span className="caret">{open ? "▾" : "▸"}</span> {name}
                     </button>
-                    <button className="icon" title={`New folder in ${name}`} onClick={() => p.onNewFolder(name)}>
+                    <button className="icon folder-add" title={`New folder in ${name}`} aria-label={`New folder in ${name}`} onClick={() => p.onNewFolder(name)}>
                       <FolderPlus />
                     </button>
-                    <button className="icon" title={`New session in ${name}`} onClick={() => p.onNewSession(name)}>
-                      ＋
+                    <button className="new-session" title={`New session in ${name}`} aria-label={`New session in ${name}`} onClick={() => p.onNewSession(name)}>
+                      <Plus />
                     </button>
                   </div>
                   {open &&
