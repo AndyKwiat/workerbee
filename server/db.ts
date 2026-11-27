@@ -120,6 +120,11 @@ export class Store {
       .map((r) => r.id);
   }
 
+  /** Copy one session's event log into another (same seq and timestamps), e.g. for a fork. */
+  copyEvents(from: string, to: string) {
+    this.db.query("INSERT INTO events (session_id, seq, ts, data) SELECT ?, seq, ts, data FROM events WHERE session_id = ?").run(to, from);
+  }
+
   deleteSession(id: string) {
     this.db.query("DELETE FROM events WHERE session_id = ?").run(id);
     this.db.query("DELETE FROM sessions WHERE id = ?").run(id);

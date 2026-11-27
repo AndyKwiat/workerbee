@@ -292,6 +292,37 @@ export class SessionManager {
     l.handle.close();
   }
 
+  /**
+   * A new session that starts from a copy of this one's conversation and then goes its own way. Same project,
+   * folder and settings; the transcript is copied so the UI shows the shared history.
+   */
+  async fork(id: string) {
+    const s = this.store.session(id);
+    if (!s) throw new Error("no such session");
+    if (!s.harness_session_id) throw new Error("nothing to fork yet: send a message first");
+    if (s.status !== "idle") throw new Error("wait for the current turn to finish, then fork");
+    const h = this.harnessFor(s);
+    if (!h.fork) throw new Error(`${h.label} sessions can't be forked`);
+    const title = `${s.title || "New session"} (fork)`;
+    const hid = await h.fork(s.harness_session_id, this.cwdFor(s.project), title);
+    const f = this.store.createSession({
+      id: crypto.randomUUID(),
+      project: s.project,
+      harness: s.harness,
+      title,
+      model: s.model,
+      effort: s.effort,
+      permission_mode: s.permission_mode,
+      folder_id: s.folder_id,
+    });
+    this.store.copyEvents(s.id, f.id);
+    this.store.updateSession(f.id, { harness_session_id: hid }, false);
+    this.emit(f.id, { type: "info", message: `Forked from "${s.title || "New session"}". Changes here don't affect the original, but both share the project's files.` });
+    const row = this.store.session(f.id)!;
+    this.publishSession(row);
+    return this.decorate(row);
+  }
+
   // ---------- sidebar folders (virtual: only the UI knows about them) ----------
   folders() {
     return this.store.folders();

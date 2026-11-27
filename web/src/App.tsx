@@ -207,6 +207,10 @@ export function App() {
         }}
         onArchive={(s) => guard(api.updateSession(s.id, { archived: !s.archived }))}
         onMove={(s, folderId) => guard(api.updateSession(s.id, { folder_id: folderId }))}
+        onFork={async (s) => {
+          const f = await guard(api.forkSession(s.id));
+          if (f) location.hash = `#/s/${f.id}`;
+        }}
         onNewFolder={(project) => {
           const name = prompt(`New folder in ${project}:`)?.trim();
           if (name) guard(api.createFolder(project, name));

@@ -149,6 +149,11 @@ export interface Harness {
     submitCode(code: string): Promise<AuthStatus>;
     logout(): Promise<AuthStatus>;
   };
+  /**
+   * Copy a conversation into a new, independent one (same history, new id) without running a turn. `cwd` is the
+   * session's working directory. Returns the new conversation's id, resumable like any other.
+   */
+  fork?(harnessSessionId: string, cwd: string, title?: string): Promise<string>;
   /** Update the harness's own CLI/runtime; returns human-readable output. */
   update?(): Promise<string>;
   version?(): Promise<string>;

@@ -151,6 +151,7 @@ export const api = {
   updateSession: (id: string, p: Partial<{ title: string; model: string | null; effort: string | null; permission_mode: PermissionMode; archived: boolean; folder_id: string | null }>) =>
     call<Session>("PATCH", `/sessions/${id}`, p),
   deleteSession: (id: string) => call("DELETE", `/sessions/${id}`),
+  forkSession: (id: string) => call<Session>("POST", `/sessions/${id}/fork`),
   createFolder: (project: string, name: string) => call<Folder>("POST", "/folders", { project, name }),
   renameFolder: (id: string, name: string) => call<Folder>("PATCH", `/folders/${id}`, { name }),
   deleteFolder: (id: string) => call("DELETE", `/folders/${id}`),

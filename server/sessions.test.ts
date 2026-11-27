@@ -242,3 +242,39 @@ test("existing folders get positions in their old alphabetical order", () => {
   store.db.close();
   require("node:fs").rmSync(path, { force: true });
 });
+
+test("fork: new session with a copy of the conversation, same project/folder/settings", async () => {
+  const store = new Store(":memory:");
+  const h = new FakeHarness();
+  const forked: [string, string][] = [];
+  (h as Harness).fork = async (hid, cwd) => (forked.push([hid, cwd]), "forked-" + hid);
+  const mgr = new SessionManager(store, { fake: h }, (p) => "/projects/" + p, () => {}, 1000);
+  const folder = mgr.createFolder("p", "F");
+  const s = mgr.create({ project: "p", harness: "fake", model: "opus", permission_mode: "acceptEdits", folder_id: folder.id });
+  await expect(mgr.fork(s.id)).rejects.toThrow(/nothing to fork/);
+  mgr.send(s.id, { text: "hello" });
+  await Bun.sleep(5);
+  await mgr.update(s.id, { title: "Original" });
+
+  const f = await mgr.fork(s.id);
+  expect(forked).toEqual([["h-1", "/projects/p"]]);
+  expect(f.id).not.toBe(s.id);
+  expect([f.title, f.project, f.folder_id, f.model, f.permission_mode, f.harness_session_id]).toEqual([
+    "Original (fork)",
+    "p",
+    folder.id,
+    "opus",
+    "acceptEdits",
+    "forked-h-1",
+  ]);
+  const orig = store.events(s.id).map((r) => r.event);
+  const copy = store.events(f.id).map((r) => r.event);
+  expect(copy.slice(0, orig.length)).toEqual(orig);
+  expect(copy.at(-1)).toMatchObject({ type: "info" });
+
+  // the fork resumes its own conversation, not the original's
+  mgr.send(f.id, { text: "branch" });
+  await Bun.sleep(5);
+  expect(h.opened.at(-1)!.resumeId).toBe("forked-h-1");
+  expect(store.events(s.id).length).toBe(orig.length); // original untouched
+});

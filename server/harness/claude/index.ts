@@ -1,4 +1,4 @@
-import { query, type Query, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
+import { forkSession, query, type Query, type SDKMessage, type SDKUserMessage } from "@anthropic-ai/claude-agent-sdk";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { Harness, HarnessSession, ModelOption, OpenOptions, PermissionMode, Sink, UserInput } from "../types";
@@ -383,6 +383,12 @@ export class ClaudeHarness implements Harness {
 
   open(opts: OpenOptions, sink: Sink): HarnessSession {
     return new ClaudeSession(this, opts, sink);
+  }
+
+  /** The SDK copies the transcript file into a new session (fresh message ids); no CLI process or turn needed. */
+  async fork(harnessSessionId: string, cwd: string, title?: string): Promise<string> {
+    const r = await forkSession(harnessSessionId, { dir: cwd, ...(title ? { title } : {}) });
+    return r.sessionId;
   }
 
   async models(): Promise<ModelOption[]> {

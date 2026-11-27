@@ -129,6 +129,7 @@ export function Sidebar(p: {
   onArchive: (s: Session) => void;
   onRename: (s: Session) => void;
   onMove: (s: Session, folderId: string | null) => void;
+  onFork: (s: Session) => void;
   onNewFolder: (project: string) => void;
   onRenameFolder: (f: Folder) => void;
   onDeleteFolder: (f: Folder) => void;
@@ -287,6 +288,13 @@ export function Sidebar(p: {
       {menu === s.id && (
         <div className="menu" onClick={(e) => e.stopPropagation()}>
           <button onClick={() => (setMenu(null), p.onRename(s))}>Rename</button>
+          <button
+            disabled={!s.harness_session_id || s.status !== "idle"}
+            title={!s.harness_session_id ? "Nothing to fork yet" : s.status !== "idle" ? "Wait for the turn to finish" : "New session with a copy of this conversation"}
+            onClick={() => (setMenu(null), p.onFork(s))}
+          >
+            Fork
+          </button>
           {foldersOf(s.project).length > 0 && (
             <button onClick={() => setMenu(`move:${s.id}`)}>Move to…</button>
           )}

@@ -263,6 +263,7 @@ async function api(req: Request, url: URL, me: string): Promise<Response> {
       sessions.send(b, { text: String(text ?? ""), images: Array.isArray(images) ? images.slice(0, 8) : undefined });
       return json({ ok: true });
     }
+    if (b && c === "fork" && m === "POST") return json(await sessions.fork(b), 201);
     if (b && c === "interrupt" && m === "POST") {
       await sessions.interrupt(b);
       return json({ ok: true });
