@@ -163,10 +163,16 @@ export function App() {
   useTabStatus(state?.sessions, session);
   const ctxUsage = useMemo(() => latestContextUsage(events), [events]);
 
-  const newSession = async (project: string) => {
+  const newSession = async (project: string, folderId: string | null = null) => {
     const last = state?.sessions.find((s) => s.project === project) ?? state?.sessions[0];
     const s = await guard(
-      api.createSession({ project, model: last?.model ?? null, effort: last?.effort ?? null, permission_mode: last?.permission_mode ?? "default" }),
+      api.createSession({
+        project,
+        folder_id: folderId,
+        model: last?.model ?? null,
+        effort: last?.effort ?? null,
+        permission_mode: last?.permission_mode ?? "default",
+      }),
     );
     if (s) location.hash = `#/s/${s.id}`;
   };

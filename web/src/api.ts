@@ -146,7 +146,7 @@ export const api = {
   cleanupSessions: () => call<{ deleted: string[] }>("POST", "/sessions/cleanup"),
   projects: () => call<Project[]>("GET", "/projects"),
   createProject: (name: string, gitUrl?: string) => call<Project>("POST", "/projects", { name, gitUrl }),
-  createSession: (p: { project: string; harness?: string; model?: string | null; effort?: string | null; permission_mode?: PermissionMode }) =>
+  createSession: (p: { project: string; harness?: string; model?: string | null; effort?: string | null; permission_mode?: PermissionMode; folder_id?: string | null }) =>
     call<Session>("POST", "/sessions", p),
   updateSession: (id: string, p: Partial<{ title: string; model: string | null; effort: string | null; permission_mode: PermissionMode; archived: boolean; folder_id: string | null }>) =>
     call<Session>("PATCH", `/sessions/${id}`, p),

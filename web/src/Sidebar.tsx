@@ -122,7 +122,7 @@ export function Sidebar(p: {
   state: State;
   current: string | null;
   auth: AuthStatus | null;
-  onNewSession: (project: string) => void;
+  onNewSession: (project: string, folderId?: string | null) => void;
   onNewProject: () => void;
   onAccount: () => void;
   onDelete: (s: Session) => void;
@@ -325,6 +325,14 @@ export function Sidebar(p: {
                               {!fOpen && <span className="folder-count">{inside.length}</span>}
                             </button>
                             {!fOpen && <StatusTag list={inside} />}
+                            <button
+                              className="new-session"
+                              title={`New session in ${f.name}`}
+                              aria-label={`New session in ${f.name}`}
+                              onClick={() => p.onNewSession(name, f.id)}
+                            >
+                              <Plus />
+                            </button>
                             <button
                               className="icon more"
                               onClick={(e) => {

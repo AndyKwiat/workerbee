@@ -94,8 +94,10 @@ export class SessionManager {
     return h;
   }
 
-  create(p: { project: string; harness: string; model?: string | null; effort?: string | null; permission_mode?: PermissionMode; title?: string }) {
+  create(p: { project: string; harness: string; model?: string | null; effort?: string | null; permission_mode?: PermissionMode; title?: string; folder_id?: string | null }) {
     if (!this.harnesses[p.harness]) throw new Error(`unknown harness ${p.harness}`);
+    const folder = p.folder_id ? this.store.folder(p.folder_id) : null;
+    if (folder === undefined || (folder && folder.project !== p.project)) throw new Error("no such folder in this project");
     const s = this.store.createSession({
       id: crypto.randomUUID(),
       project: p.project,
@@ -104,6 +106,7 @@ export class SessionManager {
       model: p.model ?? null,
       effort: p.effort ?? null,
       permission_mode: p.permission_mode ?? "default",
+      folder_id: folder?.id ?? null,
     });
     this.publishSession(s);
     return this.decorate(s);

@@ -182,14 +182,19 @@ test("folders: move sessions in and out, rename, delete sends sessions back to t
   await expect(mgr.update(b.id, { folder_id: f.id })).rejects.toThrow(); // other project
   await expect(mgr.update(a.id, { folder_id: "nope" })).rejects.toThrow();
 
+  const c = mgr.create({ project: "p", harness: "fake", folder_id: f.id });
+  expect(c.folder_id).toBe(f.id);
+  expect(() => mgr.create({ project: "q", harness: "fake", folder_id: f.id })).toThrow();
+
   expect(mgr.renameFolder(f.id, "Later")!.name).toBe("Later");
   expect(() => mgr.renameFolder(f.id, " ")).toThrow();
 
   pushes.length = 0;
   mgr.deleteFolder(f.id);
   expect(store.session(a.id)!.folder_id).toBeNull();
+  expect(store.session(c.id)!.folder_id).toBeNull();
   expect(mgr.folders()).toEqual([]);
-  expect(pushes.map((p) => p.type)).toEqual(["session", "folders"]);
+  expect(pushes.map((p) => p.type)).toEqual(["session", "session", "folders"]);
 });
 
 test("folder_id column is added to an existing database", () => {

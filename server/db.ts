@@ -72,14 +72,14 @@ export class Store {
     return new Date().toISOString();
   }
 
-  createSession(s: Pick<SessionRow, "id" | "project" | "harness" | "title" | "model" | "effort" | "permission_mode">) {
+  createSession(s: Pick<SessionRow, "id" | "project" | "harness" | "title" | "model" | "effort" | "permission_mode"> & { folder_id?: string | null }) {
     const t = this.now();
     this.db
       .query(
-        `INSERT INTO sessions (id, project, harness, title, model, effort, permission_mode, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO sessions (id, project, harness, title, model, effort, permission_mode, folder_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(s.id, s.project, s.harness, s.title, s.model, s.effort, s.permission_mode, t, t);
+      .run(s.id, s.project, s.harness, s.title, s.model, s.effort, s.permission_mode, s.folder_id ?? null, t, t);
     return this.session(s.id)!;
   }
 

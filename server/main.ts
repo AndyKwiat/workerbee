@@ -240,7 +240,7 @@ async function api(req: Request, url: URL, me: string): Promise<Response> {
       const p = await body(req);
       projects.path(String(p.project ?? "")); // validates
       if (!projects.list().some((x) => x.name === p.project)) return fail("no such project", 404);
-      return json(sessions.create({ project: p.project, harness: p.harness ?? defaultHarness, model: p.model, effort: p.effort, permission_mode: p.permission_mode }), 201);
+      return json(sessions.create({ project: p.project, harness: p.harness ?? defaultHarness, model: p.model, effort: p.effort, permission_mode: p.permission_mode, folder_id: p.folder_id ?? null }), 201);
     }
     if (b === "cleanup" && !c && m === "POST") return json({ deleted: sessions.cleanupEmpty() });
     if (b && !c && m === "GET") {
