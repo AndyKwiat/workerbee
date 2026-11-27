@@ -466,3 +466,30 @@ hr { border: none; border-top: 1px solid var(--border); width: 100%; margin: 4px
   .ctx-meter-wrap { display: block; margin: 2px 0 0; }
   .ctx-pop { position: fixed; left: 16px; right: 16px; top: auto; min-width: 0; }
 }
+/* virtual folders inside a project (sidebar only) */
+.folder { border-radius: 8px; }
+.folder-row { position: relative; display: flex; align-items: center; gap: 4px; border-radius: 8px; }
+.folder-row:hover { background: var(--user); }
+.folder-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 5px 4px 5px 12px;
+  font-size: 13px;
+  color: var(--text);
+}
+.folder-icon { font-size: 12px; }
+.folder-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder-count { flex: none; font-size: 10px; line-height: 1; padding: 2px 5px; border-radius: 999px; background: var(--border); color: var(--muted); }
+.folder-row .more { visibility: hidden; }
+.folder-row:hover .more { visibility: visible; }
+.folder-sessions .session-link { padding-left: 36px; }
+.folder-empty { padding: 4px 0 6px 36px; }
+.project.drop, .folder.drop { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.session-row.dragging { opacity: 0.4; }
+.session-row[draggable="true"] { cursor: grab; }

@@ -67,6 +67,8 @@ export type Session = {
   permission_mode: PermissionMode;
   status: "idle" | "running" | "waiting";
   archived: number;
+  /** Virtual sidebar folder (UI only), or null for the project root. */
+  folder_id: string | null;
   created_at: string;
   updated_at: string;
   last_activity: string | null;
@@ -75,6 +77,8 @@ export type Session = {
   background?: BackgroundTask[];
 };
 
+/** A sidebar folder inside a project. Virtual: sessions still run in the project folder. */
+export type Folder = { id: string; project: string; name: string; created_at: string };
 export type Project = { name: string; path: string; git: boolean; created_at: string };
 export type UsageWindow = { key: string; label: string; used: number; resets_at?: string | null };
 /** `stale`: the latest fetch failed (reason given); `windows` are the last good numbers from `fetched_at`. */
@@ -97,6 +101,7 @@ export type State = {
   defaultHarness: string;
   projects: Project[];
   sessions: Session[];
+  folders: Folder[];
   usage: Record<string, Usage>;
   live: number;
   background: number;
@@ -110,6 +115,7 @@ export type Push =
   | { type: "usage"; harness: string; usage: Usage }
   | { type: "auth"; harness: string; auth: AuthStatus }
   | { type: "projects" }
+  | { type: "folders"; folders: Folder[] }
   | { type: "pong" };
 
 async function call<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -142,9 +148,12 @@ export const api = {
   createProject: (name: string, gitUrl?: string) => call<Project>("POST", "/projects", { name, gitUrl }),
   createSession: (p: { project: string; harness?: string; model?: string | null; effort?: string | null; permission_mode?: PermissionMode }) =>
     call<Session>("POST", "/sessions", p),
-  updateSession: (id: string, p: Partial<{ title: string; model: string | null; effort: string | null; permission_mode: PermissionMode; archived: boolean }>) =>
+  updateSession: (id: string, p: Partial<{ title: string; model: string | null; effort: string | null; permission_mode: PermissionMode; archived: boolean; folder_id: string | null }>) =>
     call<Session>("PATCH", `/sessions/${id}`, p),
   deleteSession: (id: string) => call("DELETE", `/sessions/${id}`),
+  createFolder: (project: string, name: string) => call<Folder>("POST", "/folders", { project, name }),
+  renameFolder: (id: string, name: string) => call<Folder>("PATCH", `/folders/${id}`, { name }),
+  deleteFolder: (id: string) => call("DELETE", `/folders/${id}`),
   events: (id: string, after = 0) => call<EventRow[]>("GET", `/sessions/${id}/events?after=${after}`),
   send: (id: string, text: string, images?: { mediaType: string; data: string }[]) => call("POST", `/sessions/${id}/messages`, { text, images }),
   interrupt: (id: string) => call("POST", `/sessions/${id}/interrupt`),

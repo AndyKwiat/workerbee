@@ -105,6 +105,9 @@ export function App() {
       case "auth":
         setAuth(m.auth);
         break;
+      case "folders":
+        setState((st) => (st ? { ...st, folders: m.folders } : st));
+        break;
       case "projects":
         api.projects().then((projects) => setState((st) => (st ? { ...st, projects } : st)));
         break;
@@ -197,6 +200,18 @@ export function App() {
           if (confirm(`Delete session "${s.title || "Untitled"}"? Project files are kept.`)) await guard(api.deleteSession(s.id));
         }}
         onArchive={(s) => guard(api.updateSession(s.id, { archived: !s.archived }))}
+        onMove={(s, folderId) => guard(api.updateSession(s.id, { folder_id: folderId }))}
+        onNewFolder={(project) => {
+          const name = prompt(`New folder in ${project}:`)?.trim();
+          if (name) guard(api.createFolder(project, name));
+        }}
+        onRenameFolder={(f) => {
+          const name = prompt("Rename folder:", f.name)?.trim();
+          if (name && name !== f.name) guard(api.renameFolder(f.id, name));
+        }}
+        onDeleteFolder={(f) => {
+          if (confirm(`Delete folder "${f.name}"? Its sessions move back to the project.`)) guard(api.deleteFolder(f.id));
+        }}
         onRename={(s) => {
           // Open the session and edit its title in the header.
           renameNext.current = s.id;

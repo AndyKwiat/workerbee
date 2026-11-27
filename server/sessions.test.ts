@@ -164,3 +164,45 @@ test("background agents keep the process open; a turn they start shows as runnin
   expect(h.sessions[0].closed).toBe(true);
   expect(mgr.backgroundCount()).toBe(0);
 });
+
+test("folders: move sessions in and out, rename, delete sends sessions back to the root", async () => {
+  const store = new Store(":memory:");
+  const pushes: Broadcast[] = [];
+  const mgr = new SessionManager(store, { fake: new FakeHarness() }, () => "/tmp", (m) => pushes.push(m), 1000);
+  const a = mgr.create({ project: "p", harness: "fake" });
+  const b = mgr.create({ project: "q", harness: "fake" });
+  const f = mgr.createFolder("p", "  Ideas  ");
+  expect(f.name).toBe("Ideas");
+  expect(pushes.at(-1)).toEqual({ type: "folders", folders: [f] });
+
+  const before = store.session(a.id)!.updated_at;
+  await Bun.sleep(2);
+  expect((await mgr.update(a.id, { folder_id: f.id }))!.folder_id).toBe(f.id);
+  expect(store.session(a.id)!.updated_at).toBe(before); // moving doesn't count as activity
+  await expect(mgr.update(b.id, { folder_id: f.id })).rejects.toThrow(); // other project
+  await expect(mgr.update(a.id, { folder_id: "nope" })).rejects.toThrow();
+
+  expect(mgr.renameFolder(f.id, "Later")!.name).toBe("Later");
+  expect(() => mgr.renameFolder(f.id, " ")).toThrow();
+
+  pushes.length = 0;
+  mgr.deleteFolder(f.id);
+  expect(store.session(a.id)!.folder_id).toBeNull();
+  expect(mgr.folders()).toEqual([]);
+  expect(pushes.map((p) => p.type)).toEqual(["session", "folders"]);
+});
+
+test("folder_id column is added to an existing database", () => {
+  const path = `/tmp/wb-migrate-${crypto.randomUUID()}.db`;
+  const { Database } = require("bun:sqlite");
+  const old = new Database(path, { create: true });
+  old.exec(`CREATE TABLE sessions (id TEXT PRIMARY KEY, project TEXT NOT NULL, harness TEXT NOT NULL, harness_session_id TEXT,
+    title TEXT NOT NULL DEFAULT '', model TEXT, effort TEXT, permission_mode TEXT NOT NULL DEFAULT 'default',
+    status TEXT NOT NULL DEFAULT 'idle', archived INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, updated_at TEXT NOT NULL)`);
+  old.exec(`INSERT INTO sessions (id, project, harness, created_at, updated_at) VALUES ('s', 'p', 'fake', 't', 't')`);
+  old.close();
+  const store = new Store(path);
+  expect(store.session("s")!.folder_id).toBeNull();
+  store.db.close();
+  require("node:fs").rmSync(path, { force: true });
+});

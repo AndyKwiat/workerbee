@@ -200,6 +200,7 @@ async function api(req: Request, url: URL, me: string): Promise<Response> {
       defaultHarness,
       projects: projects.list(),
       sessions: store.sessions().map((s) => sessions.decorate(s)),
+      folders: sessions.folders(),
       usage,
       live: sessions.liveCount(),
       background: sessions.backgroundCount(),
@@ -213,6 +214,19 @@ async function api(req: Request, url: URL, me: string): Promise<Response> {
       const p = await projects.create(String(name ?? "").trim(), gitUrl ? String(gitUrl).trim() : undefined);
       publish({ type: "projects" });
       return json(p, 201);
+    }
+  }
+
+  if (a === "folders") {
+    if (!b && m === "POST") {
+      const p = await body(req);
+      if (!projects.list().some((x) => x.name === p.project)) return fail("no such project", 404);
+      return json(sessions.createFolder(String(p.project), String(p.name ?? "")), 201);
+    }
+    if (b && !c && m === "PATCH") return json(sessions.renameFolder(b, String((await body(req)).name ?? "")));
+    if (b && !c && m === "DELETE") {
+      sessions.deleteFolder(b);
+      return json({ ok: true });
     }
   }
 

@@ -14,6 +14,8 @@ export type SessionRow = {
   permission_mode: PermissionMode;
   status: "idle" | "running" | "waiting";
   archived: number;
+  /** Virtual sidebar folder within the project (UI only; the session still runs in the project folder). */
+  folder_id: string | null;
   created_at: string;
   updated_at: string;
   /** When something was last said in it (a message sent, or an answer), else null. Computed, not stored. */
@@ -21,6 +23,9 @@ export type SessionRow = {
   /** The first thing the user sent (first 300 chars), for tooltips. Computed, not stored. */
   first_message: string | null;
 };
+
+/** A sidebar folder grouping sessions inside a project. Purely a UI aid: nothing on disk. */
+export type FolderRow = { id: string; project: string; name: string; created_at: string };
 
 export type EventRow = { session_id: string; seq: number; ts: string; event: WbEvent };
 
@@ -52,7 +57,15 @@ export class Store {
         PRIMARY KEY (session_id, seq)
       );
       CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS folders (
+        id TEXT PRIMARY KEY,
+        project TEXT NOT NULL,
+        name TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
     `);
+    const cols = this.db.query<{ name: string }, []>("PRAGMA table_info(sessions)").all();
+    if (!cols.some((c) => c.name === "folder_id")) this.db.exec("ALTER TABLE sessions ADD COLUMN folder_id TEXT");
   }
 
   now() {
@@ -102,6 +115,32 @@ export class Store {
   deleteSession(id: string) {
     this.db.query("DELETE FROM events WHERE session_id = ?").run(id);
     this.db.query("DELETE FROM sessions WHERE id = ?").run(id);
+  }
+
+  folders() {
+    return this.db.query<FolderRow, []>("SELECT * FROM folders ORDER BY project, name COLLATE NOCASE").all();
+  }
+
+  folder(id: string) {
+    return this.db.query<FolderRow, [string]>("SELECT * FROM folders WHERE id = ?").get(id) ?? undefined;
+  }
+
+  createFolder(f: Pick<FolderRow, "id" | "project" | "name">) {
+    this.db.query("INSERT INTO folders (id, project, name, created_at) VALUES (?, ?, ?, ?)").run(f.id, f.project, f.name, this.now());
+    return this.folder(f.id)!;
+  }
+
+  renameFolder(id: string, name: string) {
+    this.db.query("UPDATE folders SET name = ? WHERE id = ?").run(name, id);
+    return this.folder(id);
+  }
+
+  /** Delete a folder; its sessions go back to the project root. Returns the ids of the sessions that moved. */
+  deleteFolder(id: string): string[] {
+    const moved = this.db.query<{ id: string }, [string]>("SELECT id FROM sessions WHERE folder_id = ?").all(id).map((r) => r.id);
+    this.db.query("UPDATE sessions SET folder_id = NULL WHERE folder_id = ?").run(id);
+    this.db.query("DELETE FROM folders WHERE id = ?").run(id);
+    return moved;
   }
 
   appendEvent(sessionId: string, event: WbEvent): EventRow {

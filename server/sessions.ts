@@ -1,11 +1,12 @@
-import type { Store, SessionRow } from "./db";
+import type { Store, SessionRow, FolderRow } from "./db";
 import type { BackgroundTask, Harness, HarnessSession, PermissionDecision, PermissionMode, PermissionRequest, UserInput, WbDelta, WbEvent } from "./harness/types";
 
 export type Broadcast =
   | { type: "event"; session_id: string; seq: number; ts: string; event: WbEvent }
   | { type: "delta"; session_id: string; delta: WbDelta }
   | { type: "session"; session: LiveSessionRow }
-  | { type: "session_deleted"; id: string };
+  | { type: "session_deleted"; id: string }
+  | { type: "folders"; folders: FolderRow[] };
 
 /** A session row plus live state: the background tasks still running in its process. */
 export type LiveSessionRow = SessionRow & { background: BackgroundTask[] };
@@ -237,9 +238,21 @@ export class SessionManager {
     await l.handle.interrupt();
   }
 
-  async update(id: string, patch: { title?: string; model?: string | null; effort?: string | null; permission_mode?: PermissionMode; archived?: boolean }) {
+  async update(id: string, patch: { title?: string; model?: string | null; effort?: string | null; permission_mode?: PermissionMode; archived?: boolean; folder_id?: string | null }) {
     const s = this.store.session(id);
     if (!s) throw new Error("no such session");
+    if (patch.folder_id !== undefined) {
+      // Moving between folders is UI-only: it doesn't touch updated_at, and the folder must be in the same project.
+      const f = patch.folder_id === null ? null : this.store.folder(patch.folder_id);
+      if (f === undefined || (f && f.project !== s.project)) throw new Error("no such folder in this project");
+      const moved = this.store.updateSession(id, { folder_id: f?.id ?? null }, false);
+      const { folder_id: _, ...rest } = patch;
+      if (!Object.keys(rest).length) {
+        this.publishSession(moved);
+        return moved && this.decorate(moved);
+      }
+      patch = rest;
+    }
     const l = this.live.get(id);
     if (patch.model !== undefined && l) await l.handle.setModel(patch.model);
     if (patch.permission_mode && l) await l.handle.setPermissionMode(patch.permission_mode);
@@ -274,6 +287,38 @@ export class SessionManager {
     this.live.delete(id);
     if (this.bg.delete(id)) this.publishSession(this.store.session(id));
     l.handle.close();
+  }
+
+  // ---------- sidebar folders (virtual: only the UI knows about them) ----------
+  folders() {
+    return this.store.folders();
+  }
+
+  private publishFolders() {
+    this.publish({ type: "folders", folders: this.store.folders() });
+  }
+
+  createFolder(project: string, name: string) {
+    const n = name.trim().slice(0, 100);
+    if (!n) throw new Error("folder name required");
+    const f = this.store.createFolder({ id: crypto.randomUUID(), project, name: n });
+    this.publishFolders();
+    return f;
+  }
+
+  renameFolder(id: string, name: string) {
+    const n = name.trim().slice(0, 100);
+    if (!n) throw new Error("folder name required");
+    if (!this.store.folder(id)) throw new Error("no such folder");
+    const f = this.store.renameFolder(id, n);
+    this.publishFolders();
+    return f;
+  }
+
+  /** Its sessions move to the project root. */
+  deleteFolder(id: string) {
+    for (const sid of this.store.deleteFolder(id)) this.publishSession(this.store.session(sid));
+    this.publishFolders();
   }
 
   delete(id: string) {
