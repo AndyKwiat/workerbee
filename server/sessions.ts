@@ -318,6 +318,12 @@ export class SessionManager {
     return f;
   }
 
+  reorderFolders(project: string, ids: string[]) {
+    this.store.reorderFolders(project, ids);
+    this.publishFolders();
+    return this.store.folders().filter((f) => f.project === project);
+  }
+
   /** Its sessions move to the project root. */
   deleteFolder(id: string) {
     for (const sid of this.store.deleteFolder(id)) this.publishSession(this.store.session(sid));

@@ -132,6 +132,7 @@ export function Sidebar(p: {
   onNewFolder: (project: string) => void;
   onRenameFolder: (f: Folder) => void;
   onDeleteFolder: (f: Folder) => void;
+  onReorderFolders: (project: string, ids: string[]) => void;
 }) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
     try {
@@ -157,7 +158,56 @@ export function Sidebar(p: {
 
   const visible = p.state.sessions.filter((s) => !!s.archived === showArchived);
   const folders = p.state.folders ?? [];
-  const foldersOf = (project: string) => folders.filter((f) => f.project === project);
+  const foldersOf = (project: string) =>
+    folders.filter((f) => f.project === project).sort((a, b) => a.position - b.position || a.created_at.localeCompare(b.created_at));
+
+  // Drag a folder onto another one in the same project to reorder (a line shows where it lands).
+  const [dragFolder, setDragFolder] = useState<Folder | null>(null);
+  const [slot, setSlot] = useState<{ id: string; after: boolean } | null>(null);
+  const moveFolder = (f: Folder, targetId: string, after: boolean) => {
+    const ids = foldersOf(f.project).map((x) => x.id).filter((id) => id !== f.id);
+    const at = ids.indexOf(targetId);
+    if (at < 0) return;
+    ids.splice(after ? at + 1 : at, 0, f.id);
+    const before = foldersOf(f.project).map((x) => x.id);
+    if (ids.join() !== before.join()) p.onReorderFolders(f.project, ids);
+  };
+  const nudgeFolder = (f: Folder, by: -1 | 1) => {
+    const ids = foldersOf(f.project).map((x) => x.id);
+    const i = ids.indexOf(f.id);
+    const j = i + by;
+    if (j < 0 || j >= ids.length) return;
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    p.onReorderFolders(f.project, ids);
+  };
+  /** Drop handlers for a folder block: folder drags reorder, session drags move the session in. */
+  const folderZone = (f: Folder) => {
+    const sessions = dropZone(f.project, f.id);
+    const where = (e: React.DragEvent) => {
+      const row = (e.currentTarget as HTMLElement).querySelector(".folder-row")!.getBoundingClientRect();
+      return e.clientY > row.top + row.height / 2;
+    };
+    return {
+      onDragOver: (e: React.DragEvent) => {
+        if (!dragFolder) return sessions.onDragOver(e);
+        if (dragFolder.project !== f.project) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = "move";
+        const after = where(e);
+        if (slot?.id !== f.id || slot.after !== after) setSlot({ id: f.id, after });
+      },
+      onDrop: (e: React.DragEvent) => {
+        if (!dragFolder) return sessions.onDrop(e);
+        if (dragFolder.project !== f.project) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (dragFolder.id !== f.id) moveFolder(dragFolder, f.id, where(e));
+        setDragFolder(null);
+        setSlot(null);
+      },
+    };
+  };
 
   // Drag a session onto a folder (or the project, for its root). Only within the same project.
   const [drag, setDrag] = useState<Session | null>(null);
@@ -287,7 +337,7 @@ export function Sidebar(p: {
           </div>
         )}
       </div>
-      <div className="projects" onDragOver={() => over && setOver(null)}>
+      <div className="projects" onDragOver={() => (over && setOver(null), slot && setSlot(null))}>
         {grouped
           ? [...names].sort().map((name) => {
               const list = byProject.get(name) ?? [];
@@ -310,14 +360,34 @@ export function Sidebar(p: {
                     </button>
                   </div>
                   {open &&
-                    fs.map((f) => {
+                    fs.map((f, fi) => {
                       const inside = list.filter((s) => s.folder_id === f.id);
                       if (showArchived && !inside.length) return null;
                       const key = `folder:${f.id}`;
                       const fOpen = !collapsed[key];
                       return (
-                        <div key={f.id} className={`folder ${over === f.id ? "drop" : ""}`} {...dropZone(name, f.id)}>
-                          <div className="folder-row">
+                        <div
+                          key={f.id}
+                          className={[
+                            "folder",
+                            over === f.id ? "drop" : "",
+                            dragFolder?.id === f.id ? "dragging" : "",
+                            slot?.id === f.id && dragFolder?.id !== f.id ? (slot.after ? "slot-after" : "slot-before") : "",
+                          ].join(" ")}
+                          {...folderZone(f)}
+                        >
+                          <div
+                            className="folder-row"
+                            draggable
+                            onDragStart={(e) => {
+                              e.stopPropagation();
+                              e.dataTransfer.setData("text/plain", f.name);
+                              e.dataTransfer.effectAllowed = "move";
+                              setDragFolder(f);
+                              setMenu(null);
+                            }}
+                            onDragEnd={() => (setDragFolder(null), setSlot(null))}
+                          >
                             <button className="folder-name" onClick={() => toggle(key)} title={f.name}>
                               <span className="caret">{fOpen ? "▾" : "▸"}</span>
                               {!fOpen && inside.some(busy) ? <span className="spinner" aria-label="Working" /> : <span className="folder-icon">📁</span>}
@@ -345,6 +415,8 @@ export function Sidebar(p: {
                             {menu === key && (
                               <div className="menu" onClick={(e) => e.stopPropagation()}>
                                 <button onClick={() => (setMenu(null), p.onRenameFolder(f))}>Rename</button>
+                                {fi > 0 && <button onClick={() => (setMenu(null), nudgeFolder(f, -1))}>Move up</button>}
+                                {fi < fs.length - 1 && <button onClick={() => (setMenu(null), nudgeFolder(f, 1))}>Move down</button>}
                                 <button className="danger" onClick={() => (setMenu(null), p.onDeleteFolder(f))}>
                                   Delete
                                 </button>

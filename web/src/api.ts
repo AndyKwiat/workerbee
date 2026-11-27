@@ -78,7 +78,7 @@ export type Session = {
 };
 
 /** A sidebar folder inside a project. Virtual: sessions still run in the project folder. */
-export type Folder = { id: string; project: string; name: string; created_at: string };
+export type Folder = { id: string; project: string; name: string; position: number; created_at: string };
 export type Project = { name: string; path: string; git: boolean; created_at: string };
 export type UsageWindow = { key: string; label: string; used: number; resets_at?: string | null };
 /** `stale`: the latest fetch failed (reason given); `windows` are the last good numbers from `fetched_at`. */
@@ -154,6 +154,7 @@ export const api = {
   createFolder: (project: string, name: string) => call<Folder>("POST", "/folders", { project, name }),
   renameFolder: (id: string, name: string) => call<Folder>("PATCH", `/folders/${id}`, { name }),
   deleteFolder: (id: string) => call("DELETE", `/folders/${id}`),
+  reorderFolders: (project: string, ids: string[]) => call<Folder[]>("POST", "/folders/reorder", { project, ids }),
   events: (id: string, after = 0) => call<EventRow[]>("GET", `/sessions/${id}/events?after=${after}`),
   send: (id: string, text: string, images?: { mediaType: string; data: string }[]) => call("POST", `/sessions/${id}/messages`, { text, images }),
   interrupt: (id: string) => call("POST", `/sessions/${id}/interrupt`),

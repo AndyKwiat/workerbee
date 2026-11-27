@@ -223,6 +223,11 @@ async function api(req: Request, url: URL, me: string): Promise<Response> {
       if (!projects.list().some((x) => x.name === p.project)) return fail("no such project", 404);
       return json(sessions.createFolder(String(p.project), String(p.name ?? "")), 201);
     }
+    if (b === "reorder" && !c && m === "POST") {
+      const p = await body(req);
+      if (!Array.isArray(p.ids)) return fail("ids required");
+      return json(sessions.reorderFolders(String(p.project ?? ""), p.ids.map(String)));
+    }
     if (b && !c && m === "PATCH") return json(sessions.renameFolder(b, String((await body(req)).name ?? "")));
     if (b && !c && m === "DELETE") {
       sessions.deleteFolder(b);

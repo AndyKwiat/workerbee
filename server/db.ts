@@ -25,7 +25,8 @@ export type SessionRow = {
 };
 
 /** A sidebar folder grouping sessions inside a project. Purely a UI aid: nothing on disk. */
-export type FolderRow = { id: string; project: string; name: string; created_at: string };
+/** `position`: order within the project (you drag folders to reorder them). */
+export type FolderRow = { id: string; project: string; name: string; position: number; created_at: string };
 
 export type EventRow = { session_id: string; seq: number; ts: string; event: WbEvent };
 
@@ -66,6 +67,13 @@ export class Store {
     `);
     const cols = this.db.query<{ name: string }, []>("PRAGMA table_info(sessions)").all();
     if (!cols.some((c) => c.name === "folder_id")) this.db.exec("ALTER TABLE sessions ADD COLUMN folder_id TEXT");
+    const fcols = this.db.query<{ name: string }, []>("PRAGMA table_info(folders)").all();
+    if (!fcols.some((c) => c.name === "position")) {
+      // Folders used to be sorted by name: keep that as the starting order.
+      this.db.exec("ALTER TABLE folders ADD COLUMN position INTEGER NOT NULL DEFAULT 0");
+      this.db.exec(`UPDATE folders SET position = (SELECT COUNT(*) FROM folders f2 WHERE f2.project = folders.project
+        AND (f2.name COLLATE NOCASE < folders.name COLLATE NOCASE OR (f2.name COLLATE NOCASE = folders.name COLLATE NOCASE AND f2.id < folders.id)))`);
+    }
   }
 
   now() {
@@ -118,21 +126,36 @@ export class Store {
   }
 
   folders() {
-    return this.db.query<FolderRow, []>("SELECT * FROM folders ORDER BY project, name COLLATE NOCASE").all();
+    return this.db.query<FolderRow, []>("SELECT * FROM folders ORDER BY project, position, created_at").all();
   }
 
   folder(id: string) {
     return this.db.query<FolderRow, [string]>("SELECT * FROM folders WHERE id = ?").get(id) ?? undefined;
   }
 
+  /** New folders go at the bottom of their project. */
   createFolder(f: Pick<FolderRow, "id" | "project" | "name">) {
-    this.db.query("INSERT INTO folders (id, project, name, created_at) VALUES (?, ?, ?, ?)").run(f.id, f.project, f.name, this.now());
+    this.db
+      .query(
+        `INSERT INTO folders (id, project, name, position, created_at)
+         VALUES (?, ?, ?, (SELECT COALESCE(MAX(position), -1) + 1 FROM folders WHERE project = ?), ?)`,
+      )
+      .run(f.id, f.project, f.name, f.project, this.now());
     return this.folder(f.id)!;
   }
 
   renameFolder(id: string, name: string) {
     this.db.query("UPDATE folders SET name = ? WHERE id = ?").run(name, id);
     return this.folder(id);
+  }
+
+  /** Put a project's folders in this order. Unknown ids are ignored; folders not listed keep their order, after these. */
+  reorderFolders(project: string, ids: string[]) {
+    const current = this.folders().filter((f) => f.project === project).map((f) => f.id);
+    const listed = ids.filter((id, i) => current.includes(id) && ids.indexOf(id) === i);
+    const order = [...listed, ...current.filter((id) => !listed.includes(id))];
+    const set = this.db.query("UPDATE folders SET position = ? WHERE id = ?");
+    this.db.transaction(() => order.forEach((id, i) => set.run(i, id)))();
   }
 
   /** Delete a folder; its sessions go back to the project root. Returns the ids of the sessions that moved. */

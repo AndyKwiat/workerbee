@@ -215,6 +215,15 @@ export function App() {
           const name = prompt("Rename folder:", f.name)?.trim();
           if (name && name !== f.name) guard(api.renameFolder(f.id, name));
         }}
+        onReorderFolders={(project, ids) => {
+          // Show the new order right away; the server's push confirms it.
+          setState((st) => {
+            if (!st) return st;
+            const pos = new Map(ids.map((id, i) => [id, i]));
+            return { ...st, folders: st.folders.map((f) => (f.project === project && pos.has(f.id) ? { ...f, position: pos.get(f.id)! } : f)) };
+          });
+          guard(api.reorderFolders(project, ids));
+        }}
         onDeleteFolder={(f) => {
           if (confirm(`Delete folder "${f.name}"? Its sessions move back to the project.`)) guard(api.deleteFolder(f.id));
         }}

@@ -211,3 +211,34 @@ test("folder_id column is added to an existing database", () => {
   store.db.close();
   require("node:fs").rmSync(path, { force: true });
 });
+
+test("folders: new ones go last, reorder sets the order, other projects untouched", () => {
+  const store = new Store(":memory:");
+  const mgr = new SessionManager(store, { fake: new FakeHarness() }, () => "/tmp", () => {}, 1000);
+  const [c, a, b] = ["c", "a", "b"].map((n) => mgr.createFolder("p", n));
+  const other = mgr.createFolder("q", "z");
+  const names = (proj: string) => mgr.folders().filter((f) => f.project === proj).map((f) => f.name);
+  expect(names("p")).toEqual(["c", "a", "b"]); // creation order, not alphabetical
+  mgr.reorderFolders("p", [b.id, c.id, "bogus", other.id]); // a not listed: stays, after the listed ones
+  expect(names("p")).toEqual(["b", "c", "a"]);
+  expect(names("q")).toEqual(["z"]);
+  expect(mgr.createFolder("p", "d").position).toBe(3);
+});
+
+test("existing folders get positions in their old alphabetical order", () => {
+  const path = `/tmp/wb-migrate-${crypto.randomUUID()}.db`;
+  const { Database } = require("bun:sqlite");
+  const old = new Database(path, { create: true });
+  old.exec(`CREATE TABLE folders (id TEXT PRIMARY KEY, project TEXT NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL)`);
+  old.exec(`INSERT INTO folders VALUES ('1', 'p', 'beta', 't'), ('2', 'p', 'Alpha', 't'), ('3', 'p', 'gamma', 't'), ('4', 'q', 'x', 't')`);
+  old.close();
+  const store = new Store(path);
+  expect(store.folders().map((f) => [f.project, f.name, f.position])).toEqual([
+    ["p", "Alpha", 0],
+    ["p", "beta", 1],
+    ["p", "gamma", 2],
+    ["q", "x", 0],
+  ]);
+  store.db.close();
+  require("node:fs").rmSync(path, { force: true });
+});

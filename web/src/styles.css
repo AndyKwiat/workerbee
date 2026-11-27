@@ -514,3 +514,18 @@ hr { border: none; border-top: 1px solid var(--border); width: 100%; margin: 4px
 .session-row[draggable="true"] { cursor: grab; }
 .folder-row { padding-right: 2px; }
 .folder-row .new-session { display: inline-flex; align-items: center; justify-content: center; flex: none; order: 2; }
+.folder { position: relative; }
+.folder.dragging { opacity: 0.4; }
+.folder-row[draggable="true"] { cursor: grab; }
+.folder.slot-before::before, .folder.slot-after::after {
+  content: "";
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  pointer-events: none;
+}
+.folder.slot-before::before { top: -1px; }
+.folder.slot-after::after { bottom: -1px; }
