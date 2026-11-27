@@ -19,6 +19,24 @@ function tip(s: Session) {
   return `${body}\n\n${s.project}`;
 }
 
+/** A checkbox setting remembered in localStorage (per browser). */
+function useStoredFlag(key: string): [boolean, (v: boolean) => void] {
+  const [v, setV] = useState(() => {
+    try {
+      return localStorage.getItem(key) === "1";
+    } catch {
+      return false;
+    }
+  });
+  const set = (next: boolean) => {
+    setV(next);
+    try {
+      localStorage.setItem(key, next ? "1" : "0");
+    } catch {}
+  };
+  return [v, set];
+}
+
 export function Sidebar(p: {
   state: State;
   current: string | null;
@@ -48,19 +66,8 @@ export function Sidebar(p: {
     } catch {}
   };
 
-  const [grouped, setGrouped] = useState(() => {
-    try {
-      return localStorage.getItem("wb.groupByProject") === "1";
-    } catch {
-      return false;
-    }
-  });
-  const setGroup = (v: boolean) => {
-    setGrouped(v);
-    try {
-      localStorage.setItem("wb.groupByProject", v ? "1" : "0");
-    } catch {}
-  };
+  const [grouped, setGroup] = useStoredFlag("wb.groupByProject");
+  const [hideEmpty, setHideEmpty] = useStoredFlag("wb.hideEmptyProjects");
 
   const visible = p.state.sessions.filter((s) => !!s.archived === showArchived);
   const when = (s: Session) => s.last_activity ?? s.created_at;
@@ -150,7 +157,7 @@ export function Sidebar(p: {
         {grouped
           ? [...names].sort().map((name) => {
               const list = byProject.get(name) ?? [];
-              if (showArchived && !list.length) return null;
+              if ((showArchived || hideEmpty) && !list.length) return null;
               const open = !collapsed[name];
               return (
                 <div key={name} className="project">
@@ -175,6 +182,12 @@ export function Sidebar(p: {
         <label className="small muted">
           <input type="checkbox" checked={grouped} onChange={(e) => setGroup(e.target.checked)} /> Group by project
         </label>
+        {grouped && (
+          <label className="small muted sub-option">
+            <input type="checkbox" checked={hideEmpty} onChange={(e) => setHideEmpty(e.target.checked)} /> Hide empty
+            projects
+          </label>
+        )}
         <button className="account" onClick={p.onAccount}>
           <span className={`dot ${p.auth?.loggedIn ? "idle" : "error"}`} />
           {p.auth ? (p.auth.loggedIn ? p.auth.email ?? "Claude: logged in" : "Claude: log in") : "Account"}

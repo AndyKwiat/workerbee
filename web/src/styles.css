@@ -217,6 +217,7 @@ a { color: var(--accent); }
 .menu button { border: none; text-align: left; background: none; }
 .menu button:hover { background: var(--user); }
 .sidebar-foot { border-top: 1px solid var(--border); padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.sidebar-foot .sub-option { padding-left: 20px; }
 .account { display: flex; align-items: center; gap: 8px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- main ---------- */
