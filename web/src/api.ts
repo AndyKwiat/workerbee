@@ -141,8 +141,16 @@ export async function uploadFile(f: File): Promise<Uploaded> {
   return j as Uploaded;
 }
 
+/** One reading of one usage window, as recorded by the server's usage poller. */
+export type UsageSample = { ts: string; key: string; used: number; resets_at: string | null };
+/** A finished turn in any session. */
+export type TurnRecord = { session_id: string; title: string; project: string | null; started_at: string; ended_at: string; duration_ms: number; ok: boolean; cost_usd: number | null };
+export type UsageHistory = { samples: UsageSample[]; turns: TurnRecord[] };
+
 export const api = {
   state: () => call<State>("GET", "/state"),
+  usageHistory: (harness: string, since: string) =>
+    call<UsageHistory>("GET", `/usage/history?harness=${encodeURIComponent(harness)}&since=${encodeURIComponent(since)}`),
   cleanupSessions: () => call<{ deleted: string[] }>("POST", "/sessions/cleanup"),
   projects: () => call<Project[]>("GET", "/projects"),
   createProject: (name: string, gitUrl?: string) => call<Project>("POST", "/projects", { name, gitUrl }),

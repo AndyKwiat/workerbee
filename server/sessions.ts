@@ -69,9 +69,18 @@ export class SessionManager {
     return true;
   }
 
+  /** When each session's current turn started (first went running), for timing turns that end without duration_ms. */
+  private turnStart = new Map<string, number>();
+
   private emit(sessionId: string, event: WbEvent) {
     if (event.type === "context" && !this.recordContext(sessionId, event)) return;
     const row = this.store.appendEvent(sessionId, event);
+    if (event.type === "turn_end") {
+      const start = this.turnStart.get(sessionId);
+      this.turnStart.delete(sessionId);
+      const dur = event.duration_ms && event.duration_ms > 0 ? event.duration_ms : start ? new Date(row.ts).getTime() - start : 0;
+      if (dur > 0) this.store.recordTurn({ session_id: sessionId, ended_at: row.ts, duration_ms: dur, ok: event.ok, cost_usd: event.cost_usd ?? null });
+    }
     this.publish({ type: "event", ...row });
   }
 
@@ -85,6 +94,7 @@ export class SessionManager {
   }
 
   private setStatus(id: string, status: SessionRow["status"], touch = true) {
+    if (status === "running" && !this.turnStart.has(id)) this.turnStart.set(id, Date.now());
     this.publishSession(this.store.updateSession(id, { status }, touch));
   }
 

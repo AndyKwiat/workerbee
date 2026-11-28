@@ -65,6 +65,7 @@ async function pollUsage(force = false) {
     } else {
       delete usageBackoff[h.id];
       store.set(`usage:${h.id}`, JSON.stringify(u));
+      store.recordUsage(h.id, u.fetched_at, u.windows);
     }
     usage[h.id] = u;
     publish({ type: "usage", harness: h.id, usage: u });
@@ -204,6 +205,19 @@ async function api(req: Request, url: URL, me: string): Promise<Response> {
       usage,
       live: sessions.liveCount(),
       background: sessions.backgroundCount(),
+    });
+  }
+
+  if (a === "usage" && b === "history" && !c && m === "GET") {
+    // Usage readings plus finished turns since `since` (default: 8 days, enough for a whole weekly window).
+    const h = harnessOf(url.searchParams.get("harness"));
+    const since = new Date(url.searchParams.get("since") ?? Date.now() - 8 * 86400_000);
+    if (isNaN(since.getTime())) return fail("bad since");
+    const iso = since.toISOString();
+    const titles = new Map(store.sessions().map((s) => [s.id, { title: s.title, project: s.project }]));
+    return json({
+      samples: store.usageSamples(h.id, iso).map(({ harness: _, ...s }) => s),
+      turns: store.turns(iso).map((t) => ({ ...t, ok: !!t.ok, title: titles.get(t.session_id)?.title ?? "", project: titles.get(t.session_id)?.project ?? null })),
     });
   }
 

@@ -90,6 +90,10 @@ Runtime env (set by radify's unit + the drop-in):
   - `usage.ts`: polls the undocumented `GET https://api.anthropic.com/api/oauth/usage`
     (`anthropic-beta: oauth-2025-04-20`), the same as Andy's SwiftBar plugin, and pushes it to the top bar
     (≥70% amber, ≥90% red). If the endpoint changes, only the top bar breaks.
+    Every good reading is also stored in `usage_samples` (one row per window), and every turn end in `turns`
+    (start = end − duration; backfilled once from `turn_end` events). `GET /api/usage/history` serves both, and the
+    meters link to the history page (`#/usage/<5h|24h|7d|30d>`, `web/src/UsagePage.tsx`): the lines, shaded spans
+    where a turn ran, a turn lane, and a per-session estimate of who used what (`web/src/usageHistory.ts`).
 - **Adding another harness** (Codex, Gemini, …): implement `Harness` in `server/harness/<name>/` and register it in
   `server/main.ts`. Sessions already store `harness` + `harness_session_id`. Don't leak SDK types past the harness
   folder, and don't make the UI read harness-specific formats.

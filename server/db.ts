@@ -30,6 +30,12 @@ export type FolderRow = { id: string; project: string; name: string; position: n
 
 export type EventRow = { session_id: string; seq: number; ts: string; event: WbEvent };
 
+/** One reading of one usage window (e.g. "five_hour" at 42% used), taken by the usage poller. */
+export type UsageSample = { ts: string; harness: string; key: string; used: number; resets_at: string | null };
+
+/** One finished turn: when it ran (started_at = ended_at - duration_ms) and how it went. */
+export type TurnRow = { session_id: string; started_at: string; ended_at: string; duration_ms: number; ok: number; cost_usd: number | null };
+
 export class Store {
   db: Database;
   constructor(path: string) {
@@ -65,6 +71,27 @@ export class Store {
         created_at TEXT NOT NULL
       );
     `);
+    const hasTurns = !!this.db.query("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'turns'").get();
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS usage_samples (
+        ts TEXT NOT NULL,
+        harness TEXT NOT NULL,
+        key TEXT NOT NULL,
+        used REAL NOT NULL,
+        resets_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS usage_samples_ts ON usage_samples (harness, ts);
+      CREATE TABLE IF NOT EXISTS turns (
+        session_id TEXT NOT NULL,
+        started_at TEXT NOT NULL,
+        ended_at TEXT NOT NULL,
+        duration_ms INTEGER NOT NULL,
+        ok INTEGER NOT NULL,
+        cost_usd REAL
+      );
+      CREATE INDEX IF NOT EXISTS turns_ended ON turns (ended_at);
+    `);
+    if (!hasTurns) this.backfillTurns();
     const cols = this.db.query<{ name: string }, []>("PRAGMA table_info(sessions)").all();
     if (!cols.some((c) => c.name === "folder_id")) this.db.exec("ALTER TABLE sessions ADD COLUMN folder_id TEXT");
     const fcols = this.db.query<{ name: string }, []>("PRAGMA table_info(folders)").all();
@@ -187,6 +214,50 @@ export class Store {
       )
       .all(sessionId, after)
       .map((r) => ({ session_id: r.session_id, seq: r.seq, ts: r.ts, event: JSON.parse(r.data) }));
+  }
+
+  /** First run only: rebuild turn history from the turn_end events already in the log (forks copy events, so skip duplicates). */
+  private backfillTurns() {
+    const rows = this.db
+      .query<{ session_id: string; ts: string; data: string }, []>(
+        "SELECT session_id, ts, data FROM events WHERE json_extract(data, '$.type') = 'turn_end' ORDER BY ts",
+      )
+      .all();
+    const seen = new Set<string>();
+    this.db.transaction(() => {
+      for (const r of rows) {
+        const e = JSON.parse(r.data);
+        const dur = Number(e.duration_ms);
+        if (!(dur > 0)) continue; // no timing recorded (e.g. "process exited"): nothing to graph
+        const k = `${r.ts}|${dur}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        this.recordTurn({ session_id: r.session_id, ended_at: r.ts, duration_ms: dur, ok: !!e.ok, cost_usd: e.cost_usd ?? null });
+      }
+    })();
+  }
+
+  recordTurn(t: { session_id: string; ended_at: string; duration_ms: number; ok: boolean; cost_usd: number | null }) {
+    const started = new Date(new Date(t.ended_at).getTime() - t.duration_ms).toISOString();
+    this.db
+      .query("INSERT INTO turns (session_id, started_at, ended_at, duration_ms, ok, cost_usd) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(t.session_id, started, t.ended_at, Math.round(t.duration_ms), t.ok ? 1 : 0, t.cost_usd);
+  }
+
+  /** Turns that overlap [since, now]. */
+  turns(since: string) {
+    return this.db.query<TurnRow, [string]>("SELECT * FROM turns WHERE ended_at >= ? ORDER BY started_at").all(since);
+  }
+
+  recordUsage(harness: string, ts: string, windows: { key: string; used: number; resets_at?: string | null }[]) {
+    const q = this.db.query("INSERT INTO usage_samples (ts, harness, key, used, resets_at) VALUES (?, ?, ?, ?, ?)");
+    this.db.transaction(() => windows.forEach((w) => q.run(ts, harness, w.key, w.used, w.resets_at ?? null)))();
+  }
+
+  usageSamples(harness: string, since: string) {
+    return this.db
+      .query<UsageSample, [string, string]>("SELECT * FROM usage_samples WHERE harness = ? AND ts >= ? ORDER BY ts")
+      .all(harness, since);
   }
 
   get(k: string) {

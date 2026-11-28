@@ -13,7 +13,8 @@ function resetsIn(iso?: string | null) {
 
 const level = (used: number) => (used >= 90 ? "crit" : used >= 70 ? "warn" : "ok");
 
-export function UsageBar({ usage, onRefresh }: { usage?: Usage; onRefresh: () => void }) {
+/** The meters in the top bar. Clicking one opens the usage history page (5-hour → last 5h, week → last 7 days). */
+export function UsageBar({ usage, onRefresh, active }: { usage?: Usage; onRefresh: () => void; active?: boolean }) {
   const [, tick] = useState(0);
   useEffect(() => {
     const t = setInterval(() => tick((n) => n + 1), 30_000);
@@ -28,20 +29,20 @@ export function UsageBar({ usage, onRefresh }: { usage?: Usage; onRefresh: () =>
       </button>
     );
   const fetched = new Date(usage.fetched_at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  const title = usage.stale ? `As of ${fetched}; latest check failed: ${usage.stale}` : `Updated ${fetched}. Click to refresh.`;
+  const title = usage.stale ? `As of ${fetched}; latest check failed: ${usage.stale}. Click for history.` : `Updated ${fetched}. Click for history.`;
   return (
-    <button className={`usage ${usage.stale ? "stale" : ""}`} onClick={onRefresh} title={title}>
+    <div className={`usage ${usage.stale ? "stale" : ""} ${active ? "active" : ""}`} title={title}>
       {usage.windows.map((w, i) => (
-        <span key={w.key} className={`uw ${level(w.used)} ${i > 1 ? "hide-mobile" : ""}`}>
+        <a key={w.key} href={`#/usage/${w.key === "five_hour" ? "5h" : "7d"}`} className={`uw ${level(w.used)} ${i > 1 ? "hide-mobile" : ""}`}>
           <span className="uw-label">{w.label}</span>
           <span className="uw-meter">
             <span style={{ width: `${Math.min(100, w.used)}%` }} />
           </span>
           <span className="uw-num">{100 - w.used}% left</span>
           {w.resets_at && <span className="uw-reset muted hide-mobile">· {resetsIn(w.resets_at)}</span>}
-        </span>
+        </a>
       ))}
       {usage.stale && <span className="muted small">as of {fetched}</span>}
-    </button>
+    </div>
   );
 }

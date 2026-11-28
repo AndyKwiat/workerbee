@@ -7,6 +7,7 @@ import { Composer } from "./Composer";
 import { useTabStatus } from "./tabStatus";
 import { ContextMeter, latestContextUsage } from "./ContextMeter";
 import { AccountDialog, NewProjectDialog } from "./Dialogs";
+import { RANGES, UsagePage, type Range } from "./UsagePage";
 
 type Stream = { text: string; thinking: string };
 
@@ -15,10 +16,18 @@ function hashSession() {
   return m ? m[1] : null;
 }
 
+/** "#/usage/<range>" opens the usage history page. */
+function hashUsage(): Range | null {
+  const m = location.hash.match(/^#\/usage(?:\/(\w+))?/);
+  if (!m) return null;
+  return (m[1] && m[1] in RANGES ? m[1] : "24h") as Range;
+}
+
 export function App() {
   const [state, setState] = useState<State | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [current, setCurrent] = useState<string | null>(hashSession());
+  const [usageRange, setUsageRange] = useState<Range | null>(hashUsage());
   const [editingTitle, setEditingTitle] = useState(false);
   const renameNext = useRef<string | null>(null); // sidebar "Rename" on another session: edit once it's open
   const [events, setEvents] = useState<EventRow[]>([]);
@@ -142,6 +151,7 @@ export function App() {
     const f = () => {
       const id = hashSession();
       setCurrent(id);
+      setUsageRange(hashUsage());
       setEditingTitle(!!id && renameNext.current === id);
       renameNext.current = null;
       setSidebarOpen(false);
@@ -192,7 +202,7 @@ export function App() {
           ☰
         </button>
         <div className="brand">🐝 workerbee</div>
-        <UsageBar usage={state.usage[harness]} onRefresh={() => guard(api.refreshUsage(harness))} />
+        <UsageBar usage={state.usage[harness]} onRefresh={() => guard(api.refreshUsage(harness))} active={!!usageRange} />
         <span className={`conn ${connected ? "up" : "down"}`} title={connected ? "Connected" : "Reconnecting…"} />
       </header>
       <Sidebar
@@ -241,7 +251,9 @@ export function App() {
       />
       <div className="scrim only-mobile" onClick={() => setSidebarOpen(false)} />
       <main className="main">
-        {session ? (
+        {usageRange ? (
+          <UsagePage harness={harness} usage={state.usage[harness]} range={usageRange} />
+        ) : session ? (
           <>
             <div className="session-head">
               <EditableTitle
